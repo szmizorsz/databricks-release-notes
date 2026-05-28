@@ -1,6 +1,14 @@
 import { Resend } from 'resend'
 import type { ScrapedItem } from './types'
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
 function formatDate(date: Date): string {
   return date.toLocaleDateString('en-US', {
     month: 'long',
@@ -19,9 +27,9 @@ function buildHtml(date: Date, items: ScrapedItem[], narrative: string): string 
 
   const section1 = Object.entries(grouped)
     .map(([cat, catItems]) => `
-      <h3 style="color:#1a56db;font-size:14px;margin:16px 0 6px">${cat}</h3>
+      <h3 style="color:#1a56db;font-size:14px;margin:16px 0 6px">${escapeHtml(cat)}</h3>
       <ul style="margin:0;padding-left:20px">
-        ${catItems.map(i => `<li style="margin:4px 0;color:#374151">${i.text}</li>`).join('')}
+        ${catItems.map(i => `<li style="margin:4px 0;color:#374151">${escapeHtml(i.text)}</li>`).join('')}
       </ul>`)
     .join('')
 
@@ -42,7 +50,7 @@ function buildHtml(date: Date, items: ScrapedItem[], narrative: string): string 
 
   <hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0">
   <h2 style="font-size:16px">AI Narrative Summary</h2>
-  <p style="line-height:1.6;color:#374151">${narrative}</p>
+  <p style="line-height:1.6;color:#374151">${escapeHtml(narrative)}</p>
 
   <hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0">
   <h2 style="font-size:16px">Source Pages</h2>
@@ -59,7 +67,7 @@ export async function sendDigestEmail(
 ): Promise<void> {
   const resend = new Resend(process.env.RESEND_API_KEY)
   const { error } = await resend.emails.send({
-    from: 'Databricks Digest <digest@resend.dev>',
+    from: process.env.EMAIL_FROM ?? 'Databricks Digest <digest@resend.dev>',
     to,
     subject: `Databricks Release Notes — ${formatDate(date)}`,
     html: buildHtml(date, items, narrative),

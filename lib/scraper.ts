@@ -17,30 +17,34 @@ function formatDateLabel(date: Date): string {
 }
 
 async function scrapePage(url: string, category: string, targetDates: string[]): Promise<ScrapedItem[]> {
-  const res = await fetch(url, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; DatabricksDigestBot/1.0)' },
-  })
-  if (!res.ok) return []
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; DatabricksDigestBot/1.0)' },
+    })
+    if (!res.ok) return []
 
-  const $ = cheerio.load(await res.text())
-  const items: ScrapedItem[] = []
+    const $ = cheerio.load(await res.text())
+    const items: ScrapedItem[] = []
 
-  $('h2').each((_, el) => {
-    if (!targetDates.includes($(el).text().trim())) return
+    $('h2').each((_, el) => {
+      if (!targetDates.includes($(el).text().trim())) return
 
-    let node = $(el).next()
-    while (node.length && !node.is('h2')) {
-      if (node.is('ul')) {
-        node.find('li').each((_, li) => {
-          const text = $(li).text().trim()
-          if (text) items.push({ category, text, sourceUrl: url })
-        })
+      let node = $(el).next()
+      while (node.length && !node.is('h2')) {
+        if (node.is('ul')) {
+          node.find('li').each((_, li) => {
+            const text = $(li).text().trim()
+            if (text) items.push({ category, text, sourceUrl: url })
+          })
+        }
+        node = node.next()
       }
-      node = node.next()
-    }
-  })
+    })
 
-  return items
+    return items
+  } catch {
+    return []
+  }
 }
 
 export async function scrapeReleaseNotes(date: Date): Promise<ScrapedItem[]> {

@@ -63,6 +63,12 @@ describe('scrapeReleaseNotes', () => {
     expect(items[0].text).toBe('Yesterday item')
   })
 
+  it('returns empty array when fetch throws', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('Network failure'))))
+    const items = await scrapeReleaseNotes(new Date('2026-05-28T12:00:00Z'))
+    expect(items).toHaveLength(0)
+  })
+
   it('skips pages that return non-200', async () => {
     vi.stubGlobal('fetch', vi.fn((url: string) => {
       if (url === PLATFORM_URL) return Promise.resolve({ ok: false, text: () => Promise.resolve('') })

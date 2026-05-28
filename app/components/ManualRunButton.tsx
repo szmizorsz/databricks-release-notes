@@ -1,19 +1,32 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { triggerDigestAction } from '@/app/actions'
 import type { RunEntry } from '@/lib/types'
 
 export function ManualRunButton() {
+  const router = useRouter()
   const [status, setStatus] = useState<'idle' | 'running' | 'done'>('idle')
   const [result, setResult] = useState<RunEntry | null>(null)
 
   async function handleRun() {
     setStatus('running')
     setResult(null)
-    const run = await triggerDigestAction()
-    setResult(run)
-    setStatus('done')
+    try {
+      const run = await triggerDigestAction()
+      setResult(run)
+      setStatus('done')
+      router.refresh()
+    } catch (err) {
+      setResult({
+        id: '',
+        timestamp: new Date().toISOString(),
+        status: 'error',
+        error: err instanceof Error ? err.message : 'Unexpected error',
+      })
+      setStatus('done')
+    }
   }
 
   return (

@@ -11,6 +11,7 @@ export function ConfigForm({ initialEmail }: { initialEmail: string }) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setStatus('saving')
+    setErrorMsg('')
     try {
       await saveConfigAction(email)
       setStatus('saved')

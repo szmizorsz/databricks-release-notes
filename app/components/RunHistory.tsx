@@ -1,5 +1,3 @@
-'use client'
-
 import type { RunEntry } from '@/lib/types'
 
 function StatusBadge({ status }: { status: RunEntry['status'] }) {

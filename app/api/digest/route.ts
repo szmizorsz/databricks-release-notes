@@ -4,6 +4,10 @@ import { runDigest } from '@/lib/digest'
 
 export async function POST(req: Request): Promise<NextResponse> {
   if (!isAuthorized(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const result = await runDigest()
-  return NextResponse.json(result)
+  try {
+    const result = await runDigest()
+    return NextResponse.json(result)
+  } catch {
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
 }

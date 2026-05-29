@@ -11,7 +11,7 @@ jobs:
     steps:
       - name: Trigger digest API
         run: |
-          status=$(curl -s -o /dev/null -w "%{http_code}" \
+          status=$(curl -s -o /dev/null -w "%{http_code}" -L \
             -X POST "${{ secrets.VERCEL_APP_URL }}/api/digest" \
             -H "Authorization: Bearer ${{ secrets.DIGEST_SECRET }}")
           echo "HTTP status: $status"

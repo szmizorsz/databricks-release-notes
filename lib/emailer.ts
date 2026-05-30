@@ -67,7 +67,7 @@ export async function sendDigestEmail(
 ): Promise<void> {
   const resend = new Resend(process.env.RESEND_API_KEY)
   const { error } = await resend.emails.send({
-    from: process.env.EMAIL_FROM ?? 'Databricks Digest <digest@resend.dev>',
+    from: 'Databricks Digest <onboarding@resend.dev>',
     to,
     subject: `Databricks Release Notes — ${formatDate(date)}`,
     html: buildHtml(date, items, narrative),

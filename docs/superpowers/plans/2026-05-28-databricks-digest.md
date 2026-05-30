@@ -4,9 +4,34 @@
 
 **Goal:** Build a Next.js 15 app that scrapes Databricks release notes daily, generates a 3-section email digest (structured summary + Claude narrative + source links) via Resend, with an admin UI for config and run history, triggered by GitHub Actions cron.
 
-**Architecture:** Next.js 15 App Router on Vercel. Vercel KV (Redis) stores email config and run history. Cheerio scrapes Databricks docs (no headless browser). GitHub Actions cron hits a Bearer-token-protected API route. Server Actions handle admin UI mutations server-side without exposing secrets to the browser.
+**Architecture:** Next.js 15 App Router on Vercel. Vercel KV (Redis, via Upstash) stores email config and run history. Cheerio parses the Databricks RSS feed. GitHub Actions cron hits a Bearer-token-protected API route. Server Actions handle admin UI mutations server-side without exposing secrets to the browser.
 
 **Tech Stack:** Next.js 15, TypeScript, Tailwind CSS, Cheerio, `@anthropic-ai/sdk` (claude-sonnet-4-6), Resend, `@vercel/kv`, Vitest
+
+---
+
+## Post-Implementation Amendments (2026-05-30)
+
+The following changes were made after initial implementation based on real-world findings:
+
+**1. Scraper: HTML scraping → RSS feed**
+Databricks restructured their docs site. The original three HTML page URLs are outdated. The scraper now uses the unified RSS feed at `https://docs.databricks.com/aws/en/feed.xml`, which is more reliable and structured. Task 5 code no longer applies — see current `lib/scraper.ts`.
+
+**2. `ScrapedItem` type: added `descriptionHtml` field**
+RSS items carry rich HTML descriptions (bullet lists, bold feature names). Stripping this to plain text for the email lost all formatting. `ScrapedItem` now has two content fields:
+- `text` — plain text (`title — stripped description`), used by the Claude summarizer
+- `descriptionHtml` — raw HTML from the RSS `<description>` CDATA, rendered directly in email section 1
+
+**3. Email section 1: plain `<li>` list → HTML from RSS**
+Each item now renders its title (bold) plus its original `descriptionHtml` block, preserving bullet lists and formatting exactly as published by Databricks.
+
+**4. Sender address: hardcoded `onboarding@resend.dev`**
+Resend does not allow sending from free public domains (Gmail). Custom domain verification requires owning a domain. For this personal tool, `onboarding@resend.dev` (Resend's shared sender) is hardcoded in `lib/emailer.ts`. The `EMAIL_FROM` env var is no longer used.
+
+**5. Vercel KV: uses Upstash directly**
+`KV_REST_API_URL` and `KV_REST_API_TOKEN` are populated from Upstash (via Vercel Marketplace), not Vercel's native KV (deprecated).
+
+---
 
 ---
 

@@ -1,7 +1,7 @@
 # Databricks Release Notes Digest — Design Spec
 
 **Date:** 2026-05-28
-**Status:** Approved
+**Status:** Approved — amended 2026-05-30 (RSS feed, HTML email rendering, hardcoded sender)
 
 ---
 
@@ -21,7 +21,7 @@ A personal daily digest application that scrapes Databricks release notes, gener
 |---|---|---|
 | Frontend | Next.js App Router | Admin UI (config + run history) |
 | API routes | Next.js route handlers | Backend logic (digest job, config CRUD, run history) |
-| Scraper | Cheerio + node `fetch` | Fetch and parse Databricks docs HTML |
+| Scraper | Cheerio + node `fetch` (RSS) | Fetch and parse Databricks RSS feed |
 | AI summary | Anthropic Claude API | Generate narrative digest from scraped content |
 | Email | Resend SDK | Send HTML email |
 | Storage | Vercel KV (Redis) | Persist config and run history |
@@ -81,18 +81,21 @@ All routes check `Authorization: Bearer <DIGEST_SECRET>` and return `401` if mis
 
 ## Scraping Pipeline
 
-**Target pages:**
-1. `https://docs.databricks.com/release-notes/product/` — Platform & Product
-2. `https://docs.databricks.com/release-notes/runtime/` — Runtime
-3. `https://docs.databricks.com/sql/release-notes/` — SQL / Serverless
+**Source:** Databricks RSS feed — `https://docs.databricks.com/aws/en/feed.xml`
+
+The Databricks docs site restructured in mid-2026 from per-category HTML pages to a unified RSS feed. The scraper uses the RSS feed instead of HTML scraping.
 
 **Process:**
-1. Fetch each page HTML via `fetch()` with a browser-like `User-Agent` header.
-2. Parse with Cheerio; locate dated section headings (e.g. "May 28, 2026").
-3. Extract bullet items under today's (and yesterday's, to handle timezone edge cases) date block.
-4. Tag each item with `{ category, text, sourceUrl }`.
-5. If zero items found across all pages: log a `skipped` run entry and exit without sending email.
-6. If scrape throws (HTTP error, parse failure): log an `error` run entry and exit.
+1. Fetch the RSS feed via `fetch()` with a browser-like `User-Agent` header.
+2. Parse XML with Cheerio (`xmlMode: true`); iterate `<item>` elements.
+3. Filter items where `<pubDate>` matches today or yesterday (UTC) to handle timezone edge cases.
+4. For each matching item, extract:
+   - `category` — from `<category>` tags; prefer specific tags (e.g. "Databricks Apps", "Lakeflow Designer") over generic ones ("Product", "Security"); fall back to "Platform". Skip "whatscoming" tags.
+   - `text` — `title — stripped description` (plain text, for Claude summarizer)
+   - `descriptionHtml` — raw HTML from `<description>` CDATA (preserves bullet lists, bold, etc., for email rendering)
+   - `sourceUrl` — from `<guid>` (direct link to the release note entry)
+5. If zero items found: log a `skipped` run entry and exit without sending email.
+6. On any fetch/parse error: return `[]` (graceful degradation per page is not applicable with a single feed; the orchestrator catches and logs as `error`).
 
 ---
 
@@ -101,13 +104,15 @@ All routes check `Authorization: Bearer <DIGEST_SECRET>` and return `401` if mis
 HTML email sent via Resend with subject `Databricks Release Notes — {date}`.
 
 **Section 1 — Structured Summary**
-Bullet points grouped by category (Platform, Runtime, SQL). Generated directly from scraped items.
+Items grouped by category (e.g. "Databricks Apps", "Lakeflow Designer", "Platform"). Each item renders its title in bold followed by its original RSS HTML (`descriptionHtml`), preserving bullet lists, bold feature names, and inline code exactly as published by Databricks.
 
 **Section 2 — AI Narrative Summary**
-Claude (`claude-sonnet-4-6`) produces a 150–250 word narrative digest. Prompt instructs it to highlight the most impactful changes and call out anything worth acting on. Uses prompt caching on the system prompt.
+Claude (`claude-sonnet-4-6`) produces a 150–250 word narrative digest. Prompt instructs it to highlight the most impactful changes and call out anything worth acting on. Claude receives plain-text content (`text` field) not the raw HTML.
 
 **Section 3 — Source Links**
-Plain list of the three scraped URLs for traceability.
+List of unique `sourceUrl` values from scraped items — one direct link per release note entry (e.g. `https://docs.databricks.com/aws/en/release-notes/product/2026/may#lakeflow-designer-updates-for-may-29-2026`).
+
+**Sender address:** `onboarding@resend.dev` (Resend's shared sender, no domain verification required). Hardcoded in `lib/emailer.ts`.
 
 ---
 
@@ -147,8 +152,8 @@ The workflow calls `POST https://<VERCEL_URL>/api/digest` with `Authorization: B
 - `DIGEST_SECRET` — same shared secret
 - `ANTHROPIC_API_KEY` — Claude API key
 - `RESEND_API_KEY` — Resend API key
-- `KV_REST_API_URL` — from Vercel KV dashboard
-- `KV_REST_API_TOKEN` — from Vercel KV dashboard
+- `KV_REST_API_URL` — from Upstash dashboard (Vercel KV replacement)
+- `KV_REST_API_TOKEN` — from Upstash dashboard
 
 ---
 
@@ -174,7 +179,7 @@ databricks-release-notes/
 │   │   └── runs/route.ts         # Run history
 │   └── layout.tsx
 ├── lib/
-│   ├── scraper.ts                # Cheerio scraping logic
+│   ├── scraper.ts                # RSS feed fetch + parse (Cheerio XML mode)
 │   ├── summarizer.ts             # Claude API call
 │   ├── emailer.ts                # Resend email builder + send
 │   └── kv.ts                     # Vercel KV helpers

@@ -16,9 +16,9 @@ beforeEach(() => {
 })
 
 const items: ScrapedItem[] = [
-  { category: 'Platform', text: 'Unity Catalog update', sourceUrl: 'https://docs.databricks.com/release-notes/product/' },
-  { category: 'Runtime', text: 'DBR 15.4 released', sourceUrl: 'https://docs.databricks.com/release-notes/runtime/' },
-  { category: 'SQL', text: 'AI Functions update', sourceUrl: 'https://docs.databricks.com/sql/release-notes/' },
+  { category: 'Platform', text: 'Unity Catalog update', descriptionHtml: '<p>Unity Catalog update details.</p>', sourceUrl: 'https://docs.databricks.com/release-notes/product/' },
+  { category: 'Runtime', text: 'DBR 15.4 released', descriptionHtml: '<p>Runtime 15.4 details.</p>', sourceUrl: 'https://docs.databricks.com/release-notes/runtime/' },
+  { category: 'SQL', text: 'AI Functions update', descriptionHtml: '<p>AI Functions details.</p>', sourceUrl: 'https://docs.databricks.com/sql/release-notes/' },
 ]
 
 describe('sendDigestEmail', () => {

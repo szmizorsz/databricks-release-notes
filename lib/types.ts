@@ -12,6 +12,7 @@ export interface RunEntry {
 
 export interface ScrapedItem {
   category: string
-  text: string
+  text: string          // plain text for Claude summarizer (title + stripped description)
+  descriptionHtml: string  // original HTML from RSS for email rendering
   sourceUrl: string
 }

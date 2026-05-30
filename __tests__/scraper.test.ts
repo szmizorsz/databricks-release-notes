@@ -44,6 +44,7 @@ describe('scrapeReleaseNotes', () => {
     expect(items[0].category).toBe('Databricks Apps')
     expect(items[0].text).toContain('Feature A')
     expect(items[0].text).toContain('Desc A')
+    expect(items[0].descriptionHtml).toContain('Desc A')
     expect(items[0].sourceUrl).toBe('https://docs.databricks.com/aws/en/release-notes/product/2026/may#a')
     expect(items[1].category).toBe('Databricks Runtime')
   })

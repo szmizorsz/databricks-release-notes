@@ -47,7 +47,7 @@ describe('runDigest', () => {
   })
 
   it('scrapes, summarizes, emails, and logs on success', async () => {
-    const items = [{ category: 'Platform', text: 'Feature A', sourceUrl: 'https://docs.databricks.com/release-notes/product/' }]
+    const items = [{ category: 'Platform', text: 'Feature A', descriptionHtml: '<p>Feature A details.</p>', sourceUrl: 'https://docs.databricks.com/release-notes/product/' }]
     mockGetConfig.mockResolvedValueOnce({ email: 'user@example.com' })
     mockScrape.mockResolvedValueOnce(items)
     mockSummarize.mockResolvedValueOnce('Great summary.')

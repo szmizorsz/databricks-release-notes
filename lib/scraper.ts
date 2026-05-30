@@ -49,12 +49,16 @@ export async function scrapeReleaseNotes(date: Date): Promise<ScrapedItem[]> {
       const title = $(el).children('title').text().trim()
       const sourceUrl = $(el).children('guid').text().trim() || $(el).children('link').text().trim()
       const rawDescription = $(el).children('description').text()
-      const description = stripHtml(rawDescription)
       const categories = $(el).children('category').map((_, cat) => $(cat).text().trim()).get()
       const category = pickCategory(categories)
 
-      const text = description ? `${title} — ${description}` : title
-      if (title) items.push({ category, text, sourceUrl })
+      // Plain text for Claude (strip HTML tags)
+      const descriptionText = stripHtml(rawDescription)
+      const text = descriptionText ? `${title} — ${descriptionText}` : title
+      // HTML for email (preserve bullet lists, bold, etc. from RSS)
+      const descriptionHtml = rawDescription.trim()
+
+      if (title) items.push({ category, text, descriptionHtml, sourceUrl })
     })
 
     return items

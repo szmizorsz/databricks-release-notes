@@ -27,10 +27,12 @@ function buildHtml(date: Date, items: ScrapedItem[], narrative: string): string 
 
   const section1 = Object.entries(grouped)
     .map(([cat, catItems]) => `
-      <h3 style="color:#1a56db;font-size:14px;margin:16px 0 6px">${escapeHtml(cat)}</h3>
-      <ul style="margin:0;padding-left:20px">
-        ${catItems.map(i => `<li style="margin:4px 0;color:#374151">${escapeHtml(i.text)}</li>`).join('')}
-      </ul>`)
+      <h3 style="color:#1a56db;font-size:14px;margin:20px 0 8px;padding-bottom:4px;border-bottom:1px solid #e5e7eb">${escapeHtml(cat)}</h3>
+      ${catItems.map(i => `
+        <div style="margin-bottom:14px">
+          <p style="margin:0 0 4px;font-weight:600;color:#111827">${escapeHtml(i.text.split(' — ')[0])}</p>
+          <div style="color:#374151;font-size:14px">${i.descriptionHtml}</div>
+        </div>`).join('')}`)
     .join('')
 
   const sourceUrls = [...new Set(items.map(i => i.sourceUrl))]

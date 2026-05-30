@@ -1,83 +1,99 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { scrapeReleaseNotes } from '@/lib/scraper'
 
-const PLATFORM_URL = 'https://docs.databricks.com/release-notes/product/'
-const RUNTIME_URL = 'https://docs.databricks.com/release-notes/runtime/'
-const SQL_URL = 'https://docs.databricks.com/sql/release-notes/'
+function makeRss(items: { title: string; pubDate: string; description: string; categories: string[]; guid: string }[]): string {
+  const itemsXml = items.map(item => `
+    <item>
+      <title>${item.title}</title>
+      <guid>${item.guid}</guid>
+      <pubDate>${item.pubDate}</pubDate>
+      <description><![CDATA[<p>${item.description}</p>]]></description>
+      ${item.categories.map(c => `<category>${c}</category>`).join('')}
+    </item>
+  `).join('')
 
-function makeHtml(dateLabel: string, items: string[]): string {
-  return `<html><body><article>
-    <h2>${dateLabel}</h2>
-    <ul>${items.map(i => `<li>${i}</li>`).join('')}</ul>
-    <h2>April 1, 2026</h2>
-    <ul><li>Old item</li></ul>
-  </article></body></html>`
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Databricks Release Notes</title>
+    <link>https://docs.databricks.com/aws/en/release-notes/</link>
+    ${itemsXml}
+  </channel>
+</rss>`
 }
 
-function stubFetch(htmlByUrl: Record<string, string>) {
-  vi.stubGlobal('fetch', vi.fn((url: string) =>
-    Promise.resolve({
-      ok: true,
-      text: () => Promise.resolve(htmlByUrl[url] ?? '<html><body></body></html>'),
-    })
+function stubFetch(rssXml: string, ok = true) {
+  vi.stubGlobal('fetch', vi.fn(() =>
+    Promise.resolve({ ok, text: () => Promise.resolve(rssXml) })
   ))
 }
 
 beforeEach(() => vi.unstubAllGlobals())
 
 describe('scrapeReleaseNotes', () => {
-  it('returns items from today\'s date section', async () => {
-    stubFetch({
-      [PLATFORM_URL]: makeHtml('May 28, 2026', ['Feature A', 'Feature B']),
-      [RUNTIME_URL]: makeHtml('May 28, 2026', ['Runtime update']),
-      [SQL_URL]: '<html><body></body></html>',
-    })
+  it('returns items matching today\'s date', async () => {
+    stubFetch(makeRss([
+      { title: 'Feature A', pubDate: 'Thu, 28 May 2026 00:00:00 GMT', description: 'Desc A', categories: ['Product', 'Databricks Apps'], guid: 'https://docs.databricks.com/aws/en/release-notes/product/2026/may#a' },
+      { title: 'Feature B', pubDate: 'Thu, 28 May 2026 00:00:00 GMT', description: 'Desc B', categories: ['Databricks Runtime'], guid: 'https://docs.databricks.com/aws/en/release-notes/runtime/18#b' },
+      { title: 'Old Feature', pubDate: 'Wed, 01 Apr 2026 00:00:00 GMT', description: 'Old', categories: ['Product'], guid: 'https://docs.databricks.com/aws/en/old' },
+    ]))
 
     const items = await scrapeReleaseNotes(new Date('2026-05-28T12:00:00Z'))
 
-    expect(items).toHaveLength(3)
-    expect(items[0]).toEqual({ category: 'Platform', text: 'Feature A', sourceUrl: PLATFORM_URL })
-    expect(items[1]).toEqual({ category: 'Platform', text: 'Feature B', sourceUrl: PLATFORM_URL })
-    expect(items[2]).toEqual({ category: 'Runtime', text: 'Runtime update', sourceUrl: RUNTIME_URL })
+    expect(items).toHaveLength(2)
+    expect(items[0].category).toBe('Databricks Apps')
+    expect(items[0].text).toContain('Feature A')
+    expect(items[0].text).toContain('Desc A')
+    expect(items[0].sourceUrl).toBe('https://docs.databricks.com/aws/en/release-notes/product/2026/may#a')
+    expect(items[1].category).toBe('Databricks Runtime')
   })
 
-  it('returns empty array when no matching date sections', async () => {
-    stubFetch({
-      [PLATFORM_URL]: makeHtml('May 1, 2026', ['Old item']),
-      [RUNTIME_URL]: makeHtml('May 1, 2026', ['Old runtime']),
-      [SQL_URL]: makeHtml('May 1, 2026', ['Old sql']),
-    })
+  it('returns empty array when no items match today or yesterday', async () => {
+    stubFetch(makeRss([
+      { title: 'Old Feature', pubDate: 'Wed, 01 Apr 2026 00:00:00 GMT', description: 'Old', categories: ['Product'], guid: 'https://docs.databricks.com/aws/en/old' },
+    ]))
 
     expect(await scrapeReleaseNotes(new Date('2026-05-28T12:00:00Z'))).toHaveLength(0)
   })
 
   it('includes yesterday\'s items for timezone edge cases', async () => {
-    stubFetch({
-      [PLATFORM_URL]: makeHtml('May 27, 2026', ['Yesterday item']),
-      [RUNTIME_URL]: '<html><body></body></html>',
-      [SQL_URL]: '<html><body></body></html>',
-    })
+    stubFetch(makeRss([
+      { title: 'Yesterday Feature', pubDate: 'Wed, 27 May 2026 00:00:00 GMT', description: 'Yesterday desc', categories: ['Product', 'Unity Catalog'], guid: 'https://docs.databricks.com/aws/en/yesterday' },
+    ]))
 
     const items = await scrapeReleaseNotes(new Date('2026-05-28T12:00:00Z'))
     expect(items).toHaveLength(1)
-    expect(items[0].text).toBe('Yesterday item')
+    expect(items[0].text).toContain('Yesterday Feature')
+    expect(items[0].category).toBe('Unity Catalog')
+  })
+
+  it('returns empty array when fetch returns non-200', async () => {
+    stubFetch('', false)
+    expect(await scrapeReleaseNotes(new Date('2026-05-28T12:00:00Z'))).toHaveLength(0)
   })
 
   it('returns empty array when fetch throws', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('Network failure'))))
-    const items = await scrapeReleaseNotes(new Date('2026-05-28T12:00:00Z'))
-    expect(items).toHaveLength(0)
+    expect(await scrapeReleaseNotes(new Date('2026-05-28T12:00:00Z'))).toHaveLength(0)
   })
 
-  it('skips pages that return non-200', async () => {
-    vi.stubGlobal('fetch', vi.fn((url: string) => {
-      if (url === PLATFORM_URL) return Promise.resolve({ ok: false, text: () => Promise.resolve('') })
-      if (url === RUNTIME_URL) return Promise.resolve({ ok: true, text: () => Promise.resolve(makeHtml('May 28, 2026', ['Runtime item'])) })
-      return Promise.resolve({ ok: true, text: () => Promise.resolve('<html><body></body></html>') })
-    }))
+  it('falls back to Platform when only generic categories present', async () => {
+    stubFetch(makeRss([
+      { title: 'Generic update', pubDate: 'Thu, 28 May 2026 00:00:00 GMT', description: 'Details', categories: ['Product', 'Security'], guid: 'https://docs.databricks.com/aws/en/generic' },
+    ]))
 
     const items = await scrapeReleaseNotes(new Date('2026-05-28T12:00:00Z'))
     expect(items).toHaveLength(1)
-    expect(items[0].category).toBe('Runtime')
+    expect(items[0].category).toBe('Platform')
+  })
+
+  it('excludes whatscoming tag from category selection', async () => {
+    stubFetch(makeRss([
+      { title: 'Upcoming change', pubDate: 'Thu, 28 May 2026 00:00:00 GMT', description: 'Coming soon', categories: ['Product', 'whatscoming', 'Databricks Apps'], guid: 'https://docs.databricks.com/aws/en/upcoming' },
+    ]))
+
+    const items = await scrapeReleaseNotes(new Date('2026-05-28T12:00:00Z'))
+    expect(items).toHaveLength(1)
+    expect(items[0].category).toBe('Databricks Apps')
   })
 })

@@ -19,3 +19,15 @@ jobs:
             echo "Digest job failed with status $status"
             exit 1
           fi
+
+  # GitHub disables scheduled workflows after 60 days of repo inactivity.
+  # Re-enabling the workflow via the API resets that timer.
+  keepalive:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Keep scheduled workflow enabled
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow enable "${{ github.workflow }}" --repo "${{ github.repository }}"

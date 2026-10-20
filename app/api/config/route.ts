@@ -11,7 +11,8 @@ export async function GET(req: Request): Promise<NextResponse> {
   try {
     const config = await getConfig()
     return NextResponse.json(config ?? {})
-  } catch {
+  } catch (err) {
+    console.error(err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -25,7 +26,8 @@ export async function PUT(req: Request): Promise<NextResponse> {
     }
     await setConfig({ email: body.email })
     return NextResponse.json({ ok: true })
-  } catch {
+  } catch (err) {
+    console.error(err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

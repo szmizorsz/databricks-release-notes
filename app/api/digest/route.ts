@@ -7,7 +7,8 @@ export async function POST(req: Request): Promise<NextResponse> {
   try {
     const result = await runDigest()
     return NextResponse.json(result)
-  } catch {
+  } catch (err) {
+    console.error(err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

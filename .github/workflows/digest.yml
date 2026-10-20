@@ -30,4 +30,4 @@ jobs:
       - name: Keep scheduled workflow enabled
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow enable "${{ github.workflow }}" --repo "${{ github.repository }}"
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/digest.yml/enable"

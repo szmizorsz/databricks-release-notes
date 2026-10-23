@@ -13,8 +13,8 @@ import type { ScrapedItem } from '@/lib/types'
 beforeEach(() => vi.clearAllMocks())
 
 const items: ScrapedItem[] = [
-  { category: 'Platform', text: 'Unity Catalog update', sourceUrl: 'https://docs.databricks.com/release-notes/product/' },
-  { category: 'Runtime', text: 'DBR 15.4 LTS released', sourceUrl: 'https://docs.databricks.com/release-notes/runtime/' },
+  { category: 'Platform', text: 'Unity Catalog update', descriptionHtml: '<p>Unity Catalog update</p>', sourceUrl: 'https://docs.databricks.com/release-notes/product/' },
+  { category: 'Runtime', text: 'DBR 15.4 LTS released', descriptionHtml: '<p>DBR 15.4 LTS released</p>', sourceUrl: 'https://docs.databricks.com/release-notes/runtime/' },
 ]
 
 describe('generateNarrativeSummary', () => {

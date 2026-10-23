@@ -1,17 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('@/lib/scraper', () => ({ scrapeReleaseNotes: vi.fn() }))
+vi.mock('@/lib/scraper', () => ({ scrapeReleaseNotes: vi.fn(), scrapeBlog: vi.fn() }))
 vi.mock('@/lib/summarizer', () => ({ generateNarrativeSummary: vi.fn() }))
 vi.mock('@/lib/emailer', () => ({ sendDigestEmail: vi.fn() }))
 vi.mock('@/lib/kv', () => ({ getConfig: vi.fn(), appendRun: vi.fn() }))
 
-import { scrapeReleaseNotes } from '@/lib/scraper'
+import { scrapeReleaseNotes, scrapeBlog } from '@/lib/scraper'
 import { generateNarrativeSummary } from '@/lib/summarizer'
 import { sendDigestEmail } from '@/lib/emailer'
 import { getConfig, appendRun } from '@/lib/kv'
 import { runDigest } from '@/lib/digest'
 
 const mockScrape = vi.mocked(scrapeReleaseNotes)
+const mockScrapeBlog = vi.mocked(scrapeBlog)
 const mockSummarize = vi.mocked(generateNarrativeSummary)
 const mockEmail = vi.mocked(sendDigestEmail)
 const mockGetConfig = vi.mocked(getConfig)
@@ -20,6 +21,7 @@ const mockAppendRun = vi.mocked(appendRun)
 beforeEach(() => {
   vi.clearAllMocks()
   mockAppendRun.mockResolvedValue(undefined)
+  mockScrapeBlog.mockResolvedValue([])
 })
 
 describe('runDigest', () => {
@@ -60,6 +62,37 @@ describe('runDigest', () => {
     expect(mockSummarize).toHaveBeenCalledWith(items)
     expect(mockEmail).toHaveBeenCalledWith('user@example.com', expect.any(Date), items, 'Great summary.')
     expect(mockAppendRun).toHaveBeenCalledWith(expect.objectContaining({ status: 'success', itemCount: 1 }))
+  })
+
+  it('combines release notes and blog items', async () => {
+    const notes = [{ category: 'Platform', text: 'Feature A', descriptionHtml: '<p>A</p>', sourceUrl: 'https://docs.databricks.com/a' }]
+    const posts = [{ category: 'Databricks Blog', text: 'Launch — teaser', descriptionHtml: 'teaser', sourceUrl: 'https://www.databricks.com/blog/launch' }]
+    mockGetConfig.mockResolvedValueOnce({ email: 'user@example.com' })
+    mockScrape.mockResolvedValueOnce(notes)
+    mockScrapeBlog.mockResolvedValueOnce(posts)
+    mockSummarize.mockResolvedValueOnce('Summary.')
+    mockEmail.mockResolvedValueOnce(undefined)
+
+    const result = await runDigest()
+
+    expect(result.status).toBe('success')
+    expect(result.itemCount).toBe(2)
+    expect(mockSummarize).toHaveBeenCalledWith([...notes, ...posts])
+    expect(mockEmail).toHaveBeenCalledWith('user@example.com', expect.any(Date), [...notes, ...posts], 'Summary.')
+  })
+
+  it('sends digest when only blog items exist', async () => {
+    const posts = [{ category: 'Databricks Blog', text: 'Launch — teaser', descriptionHtml: 'teaser', sourceUrl: 'https://www.databricks.com/blog/launch' }]
+    mockGetConfig.mockResolvedValueOnce({ email: 'user@example.com' })
+    mockScrape.mockResolvedValueOnce([])
+    mockScrapeBlog.mockResolvedValueOnce(posts)
+    mockSummarize.mockResolvedValueOnce('Summary.')
+    mockEmail.mockResolvedValueOnce(undefined)
+
+    const result = await runDigest()
+
+    expect(result.status).toBe('success')
+    expect(result.itemCount).toBe(1)
   })
 
   it('returns error when scrape throws', async () => {

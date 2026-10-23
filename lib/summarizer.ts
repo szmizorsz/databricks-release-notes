@@ -1,8 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { ScrapedItem } from './types'
 
-const SYSTEM_PROMPT = `You are a technical writer summarizing Databricks platform release notes for a software engineer.
-Write a concise narrative summary (150-250 words) of the provided release notes.
+const SYSTEM_PROMPT = `You are a technical writer summarizing Databricks platform release notes and blog announcements for a software engineer.
+Write a concise narrative summary (150-250 words) of the provided items.
 Highlight the most impactful changes. Call out anything requiring action: upgrades, deprecations, breaking changes.
 Write in plain prose, not bullet points. Be specific and technical.`
 

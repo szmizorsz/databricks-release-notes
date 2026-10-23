@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { scrapeReleaseNotes } from '@/lib/scraper'
+import { scrapeReleaseNotes, scrapeBlog } from '@/lib/scraper'
 
 function makeRss(items: { title: string; pubDate: string; description: string; categories: string[]; guid: string }[]): string {
   const itemsXml = items.map(item => `
@@ -96,5 +96,67 @@ describe('scrapeReleaseNotes', () => {
     const items = await scrapeReleaseNotes(new Date('2026-05-28T12:00:00Z'))
     expect(items).toHaveLength(1)
     expect(items[0].category).toBe('Databricks Apps')
+  })
+})
+
+function makeBlogRss(items: { title: string; pubDate: string; description: string; categories: string[]; link: string }[]): string {
+  const itemsXml = items.map(item => `
+    <item>
+      <title>${item.title}</title>
+      <link>${item.link}</link>
+      <guid isPermaLink="false">${item.link}</guid>
+      <pubDate>${item.pubDate}</pubDate>
+      <description>${item.description}</description>
+      ${item.categories.map(c => `<category>${c}</category>`).join('')}
+    </item>
+  `).join('')
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Databricks</title>
+    <link>https://www.databricks.com</link>
+    ${itemsXml}
+  </channel>
+</rss>`
+}
+
+describe('scrapeBlog', () => {
+  it('keeps only product announcement posts from today and yesterday', async () => {
+    stubFetch(makeBlogRss([
+      { title: 'AI Runtime is Generally Available', pubDate: 'Thu, 28 May 2026 17:00:00 GMT', description: 'Today we are announcing...', categories: ['Platform &amp; Products &amp; Announcements'], link: 'https://www.databricks.com/blog/ai-runtime-ga' },
+      { title: 'Introducing Agent Memory', pubDate: 'Wed, 27 May 2026 09:00:00 GMT', description: 'Agents need memory...', categories: ['Platform'], link: 'https://www.databricks.com/blog/agent-memory' },
+      { title: 'How Acme Detects Fraud', pubDate: 'Thu, 28 May 2026 10:00:00 GMT', description: 'Acme uses...', categories: ['Customers', 'Industries'], link: 'https://www.databricks.com/blog/acme' },
+      { title: 'Old Launch', pubDate: 'Mon, 25 May 2026 10:00:00 GMT', description: 'Old...', categories: ['Platform'], link: 'https://www.databricks.com/blog/old' },
+    ]))
+
+    const items = await scrapeBlog(new Date('2026-05-28T12:00:00Z'))
+
+    expect(items.map(i => i.sourceUrl)).toEqual([
+      'https://www.databricks.com/blog/ai-runtime-ga',
+      'https://www.databricks.com/blog/agent-memory',
+    ])
+    expect(items[0].category).toBe('Databricks Blog')
+    expect(items[0].text).toBe('AI Runtime is Generally Available — Today we are announcing...')
+    expect(items[0].descriptionHtml).toBe('Today we are announcing...')
+  })
+
+  it('escapes the plain-text teaser for email HTML', async () => {
+    stubFetch(makeBlogRss([
+      { title: 'Launch', pubDate: 'Thu, 28 May 2026 10:00:00 GMT', description: 'Use &lt;b&gt; &amp; more', categories: ['Platform'], link: 'https://www.databricks.com/blog/launch' },
+    ]))
+
+    const items = await scrapeBlog(new Date('2026-05-28T12:00:00Z'))
+    expect(items[0].descriptionHtml).toBe('Use &lt;b&gt; &amp; more')
+  })
+
+  it('returns empty array when fetch returns non-200', async () => {
+    stubFetch('', false)
+    expect(await scrapeBlog(new Date('2026-05-28T12:00:00Z'))).toHaveLength(0)
+  })
+
+  it('returns empty array when fetch throws', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('Network failure'))))
+    expect(await scrapeBlog(new Date('2026-05-28T12:00:00Z'))).toHaveLength(0)
   })
 })

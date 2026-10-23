@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid'
-import { scrapeReleaseNotes } from './scraper'
+import { scrapeReleaseNotes, scrapeBlog } from './scraper'
 import { generateNarrativeSummary } from './summarizer'
 import { sendDigestEmail } from './emailer'
 import { getConfig, appendRun } from './kv'
@@ -17,7 +17,8 @@ export async function runDigest(): Promise<RunEntry> {
   }
 
   try {
-    const items = await scrapeReleaseNotes(now)
+    const [notes, posts] = await Promise.all([scrapeReleaseNotes(now), scrapeBlog(now)])
+    const items = [...notes, ...posts]
 
     if (items.length === 0) {
       const run: RunEntry = { id, timestamp: now.toISOString(), status: 'skipped', itemCount: 0 }
